@@ -1,27 +1,46 @@
 import streamlit as st
 import fitz  # PyMuPDF
-from PIL import Image
+from PIL import Image, ImageChops
 import re
 import time
 
 # --- 페이지 설정 ---
-st.set_page_config(page_title="건설안전기사 모바일 v4.0", layout="centered")
+st.set_page_config(page_title="건설안전기사 모바일 v5.0", layout="centered")
 
-# --- 스타일 설정 (버튼 크기 줄이기) ---
+# --- 스타일 설정 (버튼을 더 작고 세련되게) ---
 st.markdown("""
     <style>
+    /* 전체 배경 흰색 */
+    .stApp { background-color: white; }
+    
+    /* 버튼 스타일 조정: 글자 크기 축소, 여백 최소화 */
     div.stButton > button {
-        font-size: 14px !important;
-        padding-top: 5px !important;
-        padding-bottom: 5px !important;
-        min-height: 35px !important;
-        margin-bottom: -10px !important;
+        font-size: 12px !important;
+        padding: 4px 10px !important;
+        min-height: 28px !important;
+        margin-bottom: -12px !important;
+        border-radius: 5px !important;
+        background-color: #f8f9fa !important;
+        color: #333 !important;
     }
-    .stImage {
-        margin-bottom: -20px !important;
-    }
+    
+    /* 이미지와 버튼 사이 간격 제거 */
+    .stImage { margin-top: -30px !important; margin-bottom: -20px !important; }
+    
+    /* 제목 크기 조정 */
+    h1 { font-size: 20px !important; padding-top: 0px !important; }
     </style>
     """, unsafe_allow_html=True)
+
+# --- 유틸리티: 이미지 여백 자동 제거 함수 ---
+def trim_white_space(img):
+    bg = Image.new(img.mode, img.size, img.getpixel((0,0)))
+    diff = ImageChops.difference(img, bg)
+    diff = ImageChops.add(diff, diff, 2.0, -100)
+    bbox = diff.getbbox()
+    if bbox:
+        return img.crop(bbox)
+    return img
 
 # --- 세션 상태 초기화 ---
 if 'questions' not in st.session_state:
@@ -67,10 +86,10 @@ def parse_pdf(doc):
             if curr: q_list.append(curr)
     return [q for q in q_list if len(q['options']) >= 4]
 
-# --- 메인 화면 ---
-st.title("👷‍♂️ 건설안전기사 모바일 v4.0")
+# --- 메인 로직 ---
+st.title("👷‍♂️ 건설안전 v5.0 (지문 확대)")
 
-uploaded_file = st.sidebar.file_uploader("PDF 파일을 선택하세요", type="pdf")
+uploaded_file = st.sidebar.file_uploader("PDF 업로드", type="pdf")
 
 if uploaded_file:
     if st.session_state.pdf_doc is None:
@@ -84,31 +103,35 @@ if uploaded_file:
         q = st.session_state.questions[st.session_state.current_idx]
         page = st.session_state.pdf_doc[q['page']]
         
-        # 문제 이미지 추출 (4.5배로 울트라 확대)
-        y_start = max(0, q['y0'] - 10)
-        y_end = q['opt_y'] - 5 if q['opt_y'] else y_start + 250
+        # 1. 문제 이미지 추출 (초고화질 Matrix 6.0)
+        y_start = max(0, q['y0'] - 15)
+        y_end = q['opt_y'] - 5 if q['opt_y'] else y_start + 300
         x0, x1 = (page.rect.width / 2) * q['side'], (page.rect.width / 2) * (q['side'] + 1)
-        clip_rect = fitz.Rect(x0 + 5, y_start, x1 - 5, y_end)
+        clip_rect = fitz.Rect(x0, y_start, x1, y_end)
         
-        pix = page.get_pixmap(matrix=fitz.Matrix(4.5, 4.5), clip=clip_rect)
+        pix = page.get_pixmap(matrix=fitz.Matrix(6.0, 6.0), clip=clip_rect)
         img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
         
+        # 2. ★ 핵심: 지문 여백 자동 삭제 ★
+        img = trim_white_space(img)
+        
+        # 3. 이미지 표시 (컨테이너 폭에 맞춤)
         st.image(img, use_container_width=True)
 
-        # 보기 선택 구역
-        st.write("") # 간격 조정
+        # 4. 보기 선택 (더 콤팩트하게)
+        st.write("") 
         for i, option in enumerate(q['options']):
-            if st.button(f"{i+1}번. {option}", key=f"opt_{i}", use_container_width=True):
+            if st.button(f"{i+1}. {option}", key=f"opt_{i}", use_container_width=True):
                 if i == q['ans_idx']:
-                    st.success(f"⭕ 정답! 🎉")
-                    time.sleep(1)
+                    st.success("⭕ 정답!")
+                    time.sleep(0.8)
                     if st.session_state.current_idx < len(st.session_state.questions) - 1:
                         st.session_state.current_idx += 1
                         st.rerun()
                 else:
                     st.error(f"❌ 오답! 정답은 {q['ans_idx']+1}번")
 
-        # 네비게이션
+        # 5. 네비게이션
         st.write("---")
         col1, col2, col3 = st.columns([1, 1, 1])
         with col1:
@@ -124,4 +147,4 @@ if uploaded_file:
                     st.session_state.current_idx += 1
                     st.rerun()
 else:
-    st.info("사이드바에서 PDF를 업로드해 주세요!")
+    st.info("사이드바에서 PDF를 선택해 주세요.")
