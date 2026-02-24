@@ -6,16 +6,17 @@ import time
 import random
 
 # --- 페이지 설정 ---
-st.set_page_config(page_title="건설안전 v8.7 Goldilocks-Fit", layout="centered")
+st.set_page_config(page_title="건설안전 v8.8 Precision-Fit", layout="centered")
 
-# --- v8.7: 10% 우측 이동 및 50% 폭 설정 CSS ---
+# --- v8.8: 5% 좌측 여백 및 50% 폭 설정 CSS ---
 st.markdown("""
     <style>
-    /* 1. 전체 여백 설정 */
+    /* 1. 전체 컨테이너 설정 */
     .block-container { 
         padding: 0.5rem !important;
         max-width: 100% !important;
     }
+    .stApp { background-color: white; }
     
     /* 2. 지문 이미지 */
     img { border: 1px solid #f0f0f0; border-radius: 8px; width: 100% !important; }
@@ -28,11 +29,11 @@ st.markdown("""
         margin-bottom: -15px !important;
     }
 
-    /* 4. ★ 하단 네비게이션: 왼쪽에서 10% 띄우고 폭 50% 설정 ★ */
+    /* 4. ★ 하단 네비게이션: 왼쪽 5% 띄우고 폭 50% ★ */
     div[data-testid="stHorizontalBlock"] {
-        width: 50% !important;      /* 전체 폭의 50% 차지 */
-        margin-left: 10% !important;  /* 왼쪽에서 10%만큼 오른쪽으로 밀기 */
-        gap: 0px !important;        /* 버튼 사이 간격 제거 */
+        width: 50% !important;      /* 전체 폭의 절반 차지 */
+        margin-left: 5% !important;  /* 일리의 요청대로 5%만 띄움 */
+        gap: 0px !important;        
         flex-wrap: nowrap !important;
         justify-content: flex-start !important;
     }
@@ -44,13 +45,13 @@ st.markdown("""
         width: 33.3% !important; 
     }
     
-    /* 네비게이션 전용 버튼 */
+    /* 내비게이션 전용 버튼 (가시성 강화) */
     div[data-testid="column"] button {
         font-size: 10px !important;
         padding: 2px !important;
-        min-height: 30px !important;
+        min-height: 32px !important;
         width: 100% !important;
-        background-color: #dee2e6 !important;
+        background-color: #ced4da !important; /* 조금 더 진한 회색 */
         color: black !important;
         border: 1px solid #adb5bd !important;
     }
@@ -124,7 +125,7 @@ def parse_pdf(doc):
     return q_list
 
 # --- 메인 실행 ---
-st.markdown('<div style="font-weight:bold; font-size:16px; margin-bottom:10px;">👷‍♂️ 건설안전 v8.7</div>', unsafe_allow_html=True)
+st.markdown('<div style="font-weight:bold; font-size:16px; margin-bottom:10px;">👷‍♂️ 건설안전 v8.8</div>', unsafe_allow_html=True)
 
 with st.sidebar:
     st.header("⚙️ 메뉴")
@@ -173,7 +174,7 @@ if uploaded_file:
                 else: st.session_state.quiz_finished = True
                 st.rerun()
 
-        # ★ 하단 네비게이션 (10% 띄우기 및 50% 압축) ★
+        # ★ 하단 네비게이션 (5% 띄우기 및 50% 압축) ★
         st.write("---")
         c1, c2, c3 = st.columns([1, 1, 1])
         with c1:
