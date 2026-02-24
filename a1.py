@@ -5,65 +5,56 @@ import re
 import time
 
 # --- 페이지 설정 ---
-st.set_page_config(page_title="건설안전기사 v6.0", layout="centered")
+st.set_page_config(page_title="건설안전 v7.0 Stable", layout="centered")
 
-# --- 강력한 모바일 최적화 CSS ---
+# --- 모바일 최적화 스타일 ---
 st.markdown("""
     <style>
-    /* 여백 및 배경 설정 */
     .block-container { padding-top: 1rem !important; padding-bottom: 0rem !important; }
     .stApp { background-color: white; }
     
-    /* 제목 스타일 */
-    .main-title { font-size: 18px !important; font-weight: bold; color: #333; margin-bottom: 10px; }
+    /* 제목 */
+    .app-title { font-size: 1.2rem; font-weight: bold; color: #2c3e50; margin-bottom: 0.5rem; text-align: center; }
 
-    /* 이미지 스타일 (지문) */
-    .stImage > img { border: 1px solid #eee; border-radius: 5px; }
+    /* 지문 이미지: 여백 없이 꽉 차게 */
+    img { border: 1px solid #f0f0f0; border-radius: 8px; width: 100% !important; }
 
-    /* 버튼 스타일 (사지선다) - 슬림하게 */
+    /* 사지선다 버튼: 번호 잘 보이고 슬림하게 */
     div.stButton > button {
         width: 100% !important;
-        font-size: 13px !important;
-        padding: 5px 10px !important;
-        min-height: 32px !important;
-        height: auto !important;
-        margin-bottom: -15px !important;
-        background-color: #f1f3f5 !important;
-        border: 1px solid #dee2e6 !important;
+        font-size: 14px !important;
         text-align: left !important;
-        display: block !important;
+        padding: 8px 12px !important;
+        margin-bottom: -10px !important;
+        background-color: #f8f9fa !important;
+        border: 1px solid #ececec !important;
+        border-radius: 6px !important;
     }
     
-    /* 버튼 텍스트 정렬 */
-    div.stButton > button div p {
-        margin-bottom: 0px !important;
-        line-height: 1.2 !important;
-    }
-
-    /* 네비게이션 버튼 간격 */
-    .nav-col { margin-top: 20px; }
+    /* 버튼 내부 텍스트 정렬 */
+    div.stButton > button p { line-height: 1.3 !important; margin: 0 !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 여백 자동 제거 함수 (지문 크게 만들기) ---
-def crop_to_content(img):
-    bg = Image.new(img.mode, img.size, img.getpixel((0,0)))
+# --- 여백 제거 함수 (이미지에서 글자만 남기기) ---
+def auto_crop(img):
+    bg = Image.new(img.mode, img.size, (255, 255, 255))
     diff = ImageChops.difference(img, bg)
     bbox = diff.getbbox()
     if bbox:
-        # 좌우 여백을 조금 더 타이트하게 잡음
         return img.crop(bbox)
     return img
 
-# --- 세션 초기화 ---
-if 'questions' not in st.session_state: st.session_state.questions = []
-if 'current_idx' not in st.session_state: st.session_state.current_idx = 0
-if 'pdf_doc' not in st.session_state: st.session_state.pdf_doc = None
+# --- 세션 상태 초기화 ---
+if 'questions' not in st.session_state:
+    st.session_state.update({'questions': [], 'current_idx': 0, 'pdf_doc': None, 'last_file': None})
 
-# --- PDF 분석 함수 ---
+# --- PDF 분석 ---
 def parse_pdf(doc):
     q_list = []
-    marker_pattern = re.compile(r'[①②③④]')
+    # 교사용 정답 마커 및 일반 번호 마커 포함
+    marker_pattern = re.compile(r'[①②③④❶❷❸❹❺●⚫⬤]')
+    
     for p_idx in range(len(doc)):
         page = doc[p_idx]
         blocks = page.get_text("blocks")
@@ -87,59 +78,66 @@ def parse_pdf(doc):
                         contents = [p.strip() for p in parts if p.strip()]
                         for i, m in enumerate(m_found):
                             if len(curr['options']) >= 4: break
-                            if m in ['❶','❷','❸','❹','❺','●','⚫']: curr['ans_idx'] = len(curr['options']) # 정답 마커 처리
+                            # 특수 마커가 정답임
+                            if m in ['❶','❷','❸','❹','❺','●','⚫','⬤']:
+                                curr['ans_idx'] = len(curr['options'])
                             curr['options'].append(contents[i] if i < len(contents) else "")
                     elif curr['options']:
                         curr['options'][-1] = (curr['options'][-1] + " " + txt).strip()
             if curr: q_list.append(curr)
-    # 정답 인덱스 자동 보정 (안 잡힌 경우 대비)
+    
+    # 정답 보정
     for q in q_list:
-        if q['ans_idx'] == -1: q['ans_idx'] = 0 
+        if q['ans_idx'] == -1: q['ans_idx'] = 0
     return [q for q in q_list if len(q['options']) >= 4]
 
-# --- 화면 구성 ---
-st.markdown('<p class="main-title">👷‍♂️ 건설안전기사 v6.0</p>', unsafe_allow_html=True)
+# --- 메인 실행 ---
+st.markdown('<p class="app-title">👷‍♂️ 건설안전기사 v7.0</p>', unsafe_allow_html=True)
 
-uploaded_file = st.sidebar.file_uploader("PDF 업로드", type="pdf")
+uploaded_file = st.sidebar.file_uploader("PDF 파일을 선택하세요", type="pdf")
 
 if uploaded_file:
-    if st.session_state.pdf_doc is None:
-        doc = fitz.open(stream=uploaded_file.read(), filetype="pdf")
-        st.session_state.pdf_doc = doc
-        st.session_state.questions = parse_pdf(doc)
+    # 파일이 새로 업로드된 경우 초기화
+    if st.session_state.last_file != uploaded_file.name:
+        with st.spinner('문제를 분석 중입니다...'):
+            doc = fitz.open(stream=uploaded_file.read(), filetype="pdf")
+            st.session_state.pdf_doc = doc
+            st.session_state.questions = parse_pdf(doc)
+            st.session_state.current_idx = 0
+            st.session_state.last_file = uploaded_file.name
         st.rerun()
 
     if st.session_state.questions:
         q = st.session_state.questions[st.session_state.current_idx]
         page = st.session_state.pdf_doc[q['page']]
         
-        # 1. 지문 캡처 (초고해상도 7.0배)
-        y_start = max(0, q['y0'] - 10)
-        y_end = q['opt_y'] - 5 if q['opt_y'] else y_start + 250
+        # 1. 지문 캡처 (안정적인 Matrix 3.5)
+        y_start = max(0, q['y0'] - 12)
+        y_end = q['opt_y'] - 5 if q['opt_y'] else y_start + 280
         x_start = (page.rect.width / 2) * q['side']
         x_end = x_start + (page.rect.width / 2)
         
         clip_rect = fitz.Rect(x_start, y_start, x_end, y_end)
-        pix = page.get_pixmap(matrix=fitz.Matrix(7.0, 7.0), clip=clip_rect)
+        pix = page.get_pixmap(matrix=fitz.Matrix(3.5, 3.5), clip=clip_rect)
         img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
         
-        # 2. 여백 잘라내기 (글자를 화면 끝까지 채움)
-        img = crop_to_content(img)
+        # 2. 여백 자르기 및 출력
+        img = auto_crop(img)
         st.image(img, use_container_width=True)
 
-        # 3. 사지선다 버튼 (번호 명시)
-        st.write("")
+        # 3. 사지선다 버튼 (번호 기호 추가)
+        markers = ["①", "②", "③", "④"]
+        st.write("") 
         for i, option in enumerate(q['options']):
-            btn_label = f"[{i+1}] {option}"
-            if st.button(btn_label, key=f"btn_{i}", use_container_width=True):
+            if st.button(f"{markers[i]} {option}", key=f"btn_{i}", use_container_width=True):
                 if i == q['ans_idx']:
-                    st.success("⭕ 정답!")
-                    time.sleep(0.7)
+                    st.success("⭕ 정답입니다!")
+                    time.sleep(0.6)
                     if st.session_state.current_idx < len(st.session_state.questions) - 1:
                         st.session_state.current_idx += 1
                         st.rerun()
                 else:
-                    st.error(f"❌ 오답! 정답은 {q['ans_idx']+1}번")
+                    st.error(f"❌ 오답! 정답은 {markers[q['ans_idx']]} 입니다.")
 
         # 4. 하단 네비게이션
         st.write("---")
@@ -156,3 +154,5 @@ if uploaded_file:
                 if st.session_state.current_idx < len(st.session_state.questions) - 1:
                     st.session_state.current_idx += 1
                     st.rerun()
+else:
+    st.info("사이드바(왼쪽 위 '>' 버튼)에서 PDF를 올려주세요.")
