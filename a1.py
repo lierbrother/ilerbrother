@@ -5,9 +5,9 @@ import re
 import time
 
 # --- 페이지 설정 ---
-st.set_page_config(page_title="건설안전기사 모바일 v1.0", layout="centered")
+st.set_page_config(page_title="건설안전기사 모바일 v3.0", layout="centered")
 
-# --- 세션 상태 초기화 (데이터 보존용) ---
+# --- 세션 상태 초기화 ---
 if 'questions' not in st.session_state:
     st.session_state.questions = []
 if 'current_idx' not in st.session_state:
@@ -15,7 +15,7 @@ if 'current_idx' not in st.session_state:
 if 'pdf_doc' not in st.session_state:
     st.session_state.pdf_doc = None
 
-# --- PDF 분석 함수 (기존 로직 유지) ---
+# --- PDF 분석 함수 ---
 def parse_pdf(doc):
     q_list = []
     ans_markers = ['●', '⚫', '⬤', '❶', '❷', '❸', '❹', '❺']
@@ -52,12 +52,13 @@ def parse_pdf(doc):
     return [q for q in q_list if len(q['options']) >= 4]
 
 # --- 메인 화면 ---
-st.title("📝 건설안전기사 기출문제")
+st.title("👷‍♂️ 건설안전기사 모바일")
 
-# 1. 파일 업로드
-uploaded_file = st.sidebar.file_uploader("PDF 파일을 업로드하세요", type="pdf")
+# 1. 파일 업로드 (다시 복구!)
+uploaded_file = st.sidebar.file_uploader("PDF 파일을 선택하세요", type="pdf")
 
 if uploaded_file:
+    # 새로운 파일이 업로드되면 초기화
     if st.session_state.pdf_doc is None:
         pdf_bytes = uploaded_file.read()
         doc = fitz.open(stream=pdf_bytes, filetype="pdf")
@@ -69,20 +70,24 @@ if uploaded_file:
         q = st.session_state.questions[st.session_state.current_idx]
         page = st.session_state.pdf_doc[q['page']]
         
-        # 2. 문제 이미지 추출 및 표시
+        # 2. 문제 이미지 추출 (3.0배 확대로 크게!)
         y_start = max(0, q['y0'] - 10)
         y_end = q['opt_y'] - 5 if q['opt_y'] else y_start + 250
         x0, x1 = (page.rect.width / 2) * q['side'], (page.rect.width / 2) * (q['side'] + 1)
         clip_rect = fitz.Rect(x0 + 5, y_start, x1 - 5, y_end)
         
-        pix = page.get_pixmap(matrix=fitz.Matrix(2, 2), clip=clip_rect)
+        # Matrix(3, 3)으로 1.5배 더 선명하고 크게 캡처
+        pix = page.get_pixmap(matrix=fitz.Matrix(3, 3), clip=clip_rect)
         img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+        
+        
         st.image(img, use_container_width=True)
 
-        # 3. 보기 선택 (핸드폰에서 누르기 좋게 버튼으로 구성)
         st.write("---")
+        # 3. 보기 선택 버튼 (번호 1. 2. 3. 4. 추가)
         for i, option in enumerate(q['options']):
-            if st.button(f"{i+1}. {option}", key=f"opt_{i}", use_container_width=True):
+            # 버튼 텍스트에 확실하게 번호 삽입
+            if st.button(f" {i+1}번. {option}", key=f"opt_{i}", use_container_width=True):
                 if i == q['ans_idx']:
                     st.success(f"⭕ 정답입니다! ({i+1}번)")
                     time.sleep(1)
@@ -90,11 +95,11 @@ if uploaded_file:
                         st.session_state.current_idx += 1
                         st.rerun()
                 else:
-                    st.error(f"❌ 오답입니다! 정답은 {q['ans_idx']+1}번입니다.")
+                    st.error(f"❌ 오답! 정답은 {q['ans_idx']+1}번입니다.")
 
         # 4. 네비게이션
         st.write("---")
-        col1, col2, col3 = st.columns([1, 2, 1])
+        col1, col2, col3 = st.columns([1, 1, 1])
         with col1:
             if st.button("⬅ 이전"):
                 if st.session_state.current_idx > 0:
